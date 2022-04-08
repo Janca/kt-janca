@@ -10,6 +10,15 @@ sealed interface Fork<out L, out R> {
     }
 }
 
+val <L, R> Fork<L, R>.isSuccessful get() = this is Fork.Right
+
+fun <L, R> Fork<L, R>.getOrNull(): R? {
+    return traverse(
+        left = { null },
+        right = { it }
+    )
+}
+
 fun <L, R> Fork<L, R>.getOrDefault(default: R): R {
     return traverse(
         left = { default },

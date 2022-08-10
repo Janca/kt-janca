@@ -19,7 +19,7 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         val DEFAULT_EVENT_HANDLER_FILTER: (KCallable<*>) -> Boolean = { it is KFunction<*> && it.hasAnnotation<Subscriber>() }
     }
 
-    private val registrants = HashMap<Any, HashMap<KClass<IEvent>, MutableList<EventHandler<IEvent>>>>()
+    private val registrants = HashMap<Any, HashMap<KClass<IEvent>, MutableList<EventListener<IEvent>>>>()
     private val subscriberLock = ReentrantReadWriteLock()
 
     private val dispatchingThreadLocal = ThreadLocal.withInitial { false }
@@ -27,7 +27,7 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
 
     open var handlerFilter: (KCallable<*>) -> Boolean = DEFAULT_EVENT_HANDLER_FILTER
 
-    override fun register(registrant: Any): List<EventHandler<IEvent>> {
+    override fun register(registrant: Any): List<EventListener<IEvent>> {
         val handlers = findHandlers(registrant)
         if (handlers.isEmpty()) {
             throw IllegalArgumentException("Zero subscriber methods found in registrant '${registrant::class.qualifiedName}'.")
@@ -46,16 +46,16 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
     }
 
     @Suppress("UNCHECKED_CAST")
-    override fun <E : IEvent> register(eventType: KClass<E>, handler: EventHandler<E>): EventHandler<E> {
-        val eventHandler = handler as EventHandler<IEvent>
+    override fun <E : IEvent> register(eventType: KClass<E>, listener: EventListener<E>): EventListener<E> {
+        val eventListener = listener as EventListener<IEvent>
 
         subscriberLock.write {
             val subscribers = registrants.computeIfAbsent(this@EventDispatch) { HashMap() }
             subscribers.computeIfAbsent(eventType as KClass<IEvent>) { ArrayList() }
-                .add(eventHandler)
+                .add(eventListener)
         }
 
-        return handler
+        return listener
     }
 
     override fun deregister(registrant: Any) {
@@ -67,14 +67,14 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         }
     }
 
-    override fun <E : IEvent> deregister(handler: EventHandler<E>) {
+    override fun <E : IEvent> deregister(listener: EventListener<E>) {
         subscriberLock.write {
             registrants.iterate registrantsIterator@{ registrantsSubscribers ->
                 val (_, subscribers) = registrantsSubscribers
                 subscribers.iterate subscribersIterator@{ typedSubscribers ->
                     val (_, eventHandlers) = typedSubscribers
                     eventHandlers.iterate eventHandlersIterator@{ eventHandler ->
-                        if (eventHandler == handler) {
+                        if (eventHandler == listener) {
                             this@eventHandlersIterator.remove()
                         }
                     }
@@ -123,14 +123,14 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
     }
 
     fun <E : IEvent> on(eventType: KClass<E>, handler: (E) -> Unit) =
-        register(eventType, object : EventHandler<E> {
+        register(eventType, object : EventListener<E> {
             override fun handle(event: E) {
                 handler(event)
             }
         })
 
     fun <E : IEvent> once(eventType: KClass<E>, handler: (E) -> Unit) {
-        register(eventType, object : EventHandler<E> {
+        register(eventType, object : EventListener<E> {
             override fun handle(event: E) {
                 try {
                     handler(event)
@@ -141,8 +141,8 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         })
     }
 
-    protected open fun newSyntheticHandler(owner: Any, handler: KFunction<*>): EventHandler<IEvent> {
-        return SyntheticEventHandler(owner, handler)
+    protected open fun newSyntheticHandler(owner: Any, handler: KFunction<*>): EventListener<IEvent> {
+        return SyntheticEventListener(owner, handler)
     }
 
     private fun processEventQueue() {
@@ -169,8 +169,8 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun findHandlers(registrant: Any): Map<KClass<IEvent>, List<EventHandler<IEvent>>> {
-        val handlers = HashMap<KClass<IEvent>, MutableList<EventHandler<*>>>()
+    private fun findHandlers(registrant: Any): Map<KClass<IEvent>, List<EventListener<IEvent>>> {
+        val handlers = HashMap<KClass<IEvent>, MutableList<EventListener<*>>>()
         val subscriberFunctions = registrant::class.members.filter(handlerFilter)
             .map { it as KFunction<*> }
 
@@ -189,10 +189,10 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
                 .add(newSyntheticHandler(registrant, subscriber))
         }
 
-        return handlers as Map<KClass<IEvent>, List<EventHandler<IEvent>>>
+        return handlers as Map<KClass<IEvent>, List<EventListener<IEvent>>>
     }
 
-    private fun EventHandler<*>.enqueue(event: IEvent) {
+    private fun EventListener<*>.enqueue(event: IEvent) {
         eventQueueThreadLocal.get().addLast(QueuedEventProcessor(this, event))
     }
 
@@ -208,7 +208,7 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         return hierarchy.filter { it.isSubclassOf(IEvent::class) }
     }
 
-    private class SyntheticEventHandler(private val owner: Any, handler: KFunction<*>) : EventHandler<IEvent> {
+    private class SyntheticEventListener(private val owner: Any, handler: KFunction<*>) : EventListener<IEvent> {
 
         private val handler: KFunction<*>
 
@@ -222,7 +222,7 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         }
     }
 
-    private class QueuedEventProcessor(private val handler: EventHandler<*>, private val event: IEvent) {
+    private class QueuedEventProcessor(private val handler: EventListener<*>, private val event: IEvent) {
 
         fun handle() {
             try {

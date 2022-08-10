@@ -10,9 +10,9 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.valueParameters
 
-class TaskDispatch(parentDispatch: IEventDispatch? = null) {
+class TaskDispatch() {
 
-    private val dispatch: IEventDispatch = object : EventDispatch(parentDispatch) {
+    private val dispatch: IEventDispatch = object : EventDispatch() {
         override var handlerFilter: (KCallable<*>) -> Boolean = {
             when {
                 it.name != "submit" -> false

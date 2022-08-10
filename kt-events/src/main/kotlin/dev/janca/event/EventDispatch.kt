@@ -123,11 +123,7 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
     }
 
     fun <E : IEvent> on(eventType: KClass<E>, handler: (E) -> Unit) =
-        register(eventType, object : EventListener<E> {
-            override fun handle(event: E) {
-                handler(event)
-            }
-        })
+        register(eventType) { event -> handler(event) }
 
     fun <E : IEvent> once(eventType: KClass<E>, handler: (E) -> Unit) {
         register(eventType, object : EventListener<E> {

@@ -1,7 +1,7 @@
 package dev.janca.event
 
 @FunctionalInterface
-interface EventListener<E : IEvent> {
+fun interface EventListener<E : IEvent> {
 
     fun handle(event: E)
 

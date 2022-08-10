@@ -11,5 +11,11 @@
         <module name="kt-events" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="kt-events" target="11" />
+      <module name="kt-janca" target="1.5" />
+      <module name="kt-tasks" target="11" />
+      <module name="kt-utils" target="11" />
+    </bytecodeTargetLevel>
   </component>
 </project>

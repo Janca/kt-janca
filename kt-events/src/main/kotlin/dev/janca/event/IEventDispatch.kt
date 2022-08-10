@@ -13,4 +13,7 @@ interface IEventDispatch {
 
     fun post(event: IEvent)
     fun postLater(executor: ExecutorService, event: IEvent): Future<Unit> = executor.submit<Unit> { post(event) }
+
+    fun child(): IEventDispatch
+    fun filteredChild(predicate: (IEvent) -> Boolean): IEventDispatch
 }

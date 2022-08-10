@@ -14,10 +14,18 @@ import kotlin.reflect.full.valueParameters
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaMethod
 
-open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDispatch {
-    companion object {
-        val DEFAULT_EVENT_HANDLER_FILTER: (KCallable<*>) -> Boolean = { it is KFunction<*> && it.hasAnnotation<Subscriber>() }
+open class EventDispatch() : IEventDispatch {
+    private constructor(parent: IEventDispatch? = null) : this() {
+        this.parent = parent
     }
+
+    companion object {
+        val DEFAULT_EVENT_HANDLER_FILTER: (KCallable<*>) -> Boolean =
+            { it is KFunction<*> && it.hasAnnotation<Subscriber>() }
+    }
+
+    private var parent: IEventDispatch? = null
+    private val children = HashSet<IEventDispatch>()
 
     private val registrants = HashMap<Any, HashMap<KClass<IEvent>, MutableList<EventListener<IEvent>>>>()
     private val subscriberLock = ReentrantReadWriteLock()
@@ -115,15 +123,10 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         }
 
         processEventQueue()
-        parent?.let {
-            if (event !is IGlobalEvent) {
-                it.post(ChildDispatchEvent(this@EventDispatch, event))
-            }
+        children.forEach {
+            it.post(event)
         }
     }
-
-    fun <E : IEvent> on(eventType: KClass<E>, handler: (E) -> Unit) =
-        register(eventType) { event -> handler(event) }
 
     fun <E : IEvent> once(eventType: KClass<E>, handler: (E) -> Unit) {
         register(eventType, object : EventListener<E> {
@@ -135,6 +138,25 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
                 }
             }
         })
+    }
+
+    override fun child(): IEventDispatch {
+        val eventDispatch = EventDispatch(this)
+        children.add(eventDispatch)
+        return eventDispatch
+    }
+
+    override fun filteredChild(predicate: (IEvent) -> Boolean): IEventDispatch {
+        val eventDispatch = object : EventDispatch(this@EventDispatch) {
+            override fun post(event: IEvent) {
+                when {
+                    predicate(event) -> super.post(event)
+                }
+            }
+        }
+
+        children.add(eventDispatch)
+        return eventDispatch
     }
 
     protected open fun newSyntheticHandler(owner: Any, handler: KFunction<*>): EventListener<IEvent> {

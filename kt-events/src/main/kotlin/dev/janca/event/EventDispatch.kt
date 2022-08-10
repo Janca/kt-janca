@@ -149,17 +149,13 @@ open class EventDispatch(private val parent: IEventDispatch? = null) : IEventDis
         when {
             dispatchingThreadLocal.get() -> return
             else -> {
-
                 dispatchingThreadLocal.set(true)
-
                 val dequeue = eventQueueThreadLocal.get()
-                var processor: QueuedEventProcessor
 
                 try {
 
                     do {
-                        processor = dequeue.poll() ?: break
-                        processor.handle()
+                        dequeue.poll()?.handle() ?: break
                     } while (dequeue.isNotEmpty())
 
                 } finally {

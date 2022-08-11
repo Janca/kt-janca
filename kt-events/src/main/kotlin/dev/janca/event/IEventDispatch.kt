@@ -16,4 +16,6 @@ interface IEventDispatch {
 
     fun child(): IEventDispatch
     fun filteredChild(predicate: (IEvent) -> Boolean): IEventDispatch
+
+    fun destroy()
 }

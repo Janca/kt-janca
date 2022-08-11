@@ -165,6 +165,13 @@ open class EventDispatch() : IEventDispatch {
         return eventDispatch
     }
 
+    override fun destroy() {
+        children.forEach { it.destroy() }
+        subscriberLock.write {
+            registrants.iterate { deregister(it.key) }
+        }
+    }
+
     protected open fun newSyntheticHandler(owner: Any, handler: KFunction<*>): EventListener<IEvent> {
         return SyntheticEventListener(owner, handler)
     }

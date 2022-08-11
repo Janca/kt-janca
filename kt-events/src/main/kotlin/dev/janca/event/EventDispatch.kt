@@ -54,7 +54,7 @@ open class EventDispatch() : IEventDispatch {
         }
 
         val listeners = handlers.flatMap { it.value }
-        logger.debug("Registered {} listener(s) from '{}'.", listeners.size, registrant::class.qualifiedName)
+        logger.info("Registered {} listener(s) from '{}'.", listeners.size, registrant::class.qualifiedName)
 
         return listeners
     }

@@ -1,6 +1,7 @@
 package dev.janca.event
 
 import dev.janca.util.iterate
+import org.slf4j.LoggerFactory
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
@@ -27,6 +28,8 @@ open class EventDispatch() : IEventDispatch {
     private var parent: IEventDispatch? = null
     private val children = HashSet<IEventDispatch>()
 
+    private val logger = LoggerFactory.getLogger(EventDispatch::class.java)
+
     private val registrants = HashMap<Any, HashMap<KClass<IEvent>, MutableList<EventListener<IEvent>>>>()
     private val subscriberLock = ReentrantReadWriteLock()
 
@@ -50,7 +53,10 @@ open class EventDispatch() : IEventDispatch {
             }
         }
 
-        return handlers.flatMap { it.value }
+        val listeners = handlers.flatMap { it.value }
+        logger.debug("Registered {} listener(s) from '{}'.", listeners.size, registrant::class.qualifiedName)
+
+        return listeners
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -203,6 +209,7 @@ open class EventDispatch() : IEventDispatch {
                 throw IllegalArgumentException("Invalid parameter type on subscriber method '${subscriber.signature}'. Expected single parameter of subtype '${IEvent::class.qualifiedName}'.")
             }
 
+            logger.debug("Found subscriber method '${subscriber.signature}'.")
             handlers.computeIfAbsent(eventType as KClass<IEvent>) { ArrayList() }
                 .add(newSyntheticHandler(registrant, subscriber))
         }
@@ -215,7 +222,7 @@ open class EventDispatch() : IEventDispatch {
     }
 
     private val KFunction<*>.signature: String
-        get() = "${this.javaMethod?.declaringClass?.canonicalName}.${this.name}(${this.valueParameters.joinToString(",") { "${it.name}: ${(it.type.classifier as KClass<*>).simpleName}" }})"
+        get() = "${this.javaMethod?.declaringClass?.simpleName}.${this.name}(${this.valueParameters.joinToString(",") { "${it.name}: ${(it.type.classifier as KClass<*>).simpleName}" }})"
 
     private fun KClass<*>.hierarchy(): List<KClass<*>> {
         val hierarchy = HashSet<KClass<*>>()
